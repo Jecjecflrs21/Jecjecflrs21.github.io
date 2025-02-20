@@ -1,0 +1,1603 @@
+<template>
+    <div class="container-fluid" style="font-size: 20px;">
+    <div class="row d-flex justify-content-right align-items-start" style="min-height: 110vh;">
+        <div class="col-md-10 col-lg-6 col-sm-10 g-mt-10">
+        <div class="g-pa-40 g-mb-30 vacant_positions" role="alert">
+            <div class="row">
+            <div class="col-lg-12 col-sm-12 g-pa-2">
+                <div class="form-group g-mb-20">
+                <v-form>
+                    <v-container>
+                        <div id="confetti-container"></div>
+                    <v-row>
+                        <div class="scene perspective-on">
+                        <div id="lottery" class="center">
+                            <div class="lottery-machine">
+                                <div class="lottery-lever" :class="{ 'down': leverPulled }"></div>
+                                <div class="lottery-right-door" :class="{ 'animation': isrightDoor }"></div>
+                            <div class="lottery-left-door" :class="{ 'animation': isleftDoor }"></div>
+                                <div class="lottery-lift" :class="{ 'animation': lift }"></div>
+                                <div class="lottery-ball" :class="{ 'animation-up': ballSelected, 'animation-roll': ballRoll}"  :key="ballSelectedKey"></div>
+                            </div>
+                            <div id="ball-place"></div>
+                        </div>
+                        </div>
+                        <v-btn class="orange-border underline-animation-black black-font glass-animation" id="play" @click="pullLever" style="font-family: Evogria" color="orange" dark solo small>
+                            Draw</v-btn>
+                        <!-- <button id="play" @click="pullLever">Draw</button> -->
+                    </v-row>
+                    </v-container>
+                </v-form>
+                </div>
+            </div>
+            </div>
+        </div>
+        </div>
+    </div>
+    </div>
+</template>
+<script>
+import $ from "jquery";
+import axios from 'axios';
+import { gsap,  Power2} from "gsap";
+import Swal from 'sweetalert2';
+import * as d3 from 'd3';
+import { schemeCategory20c } from 'd3-scale-chromatic';
+import confetti from 'canvas-confetti';
+
+export default {
+data() {
+    return {
+    balls: new Array().fill(null).map((_, i) => i + 1),
+    playing: false,
+    leverPulled: false,        
+    isleftDoor: false,
+    isrightDoor: false,
+    ballSelected: false,
+    ballRoll: false,
+    lift: false,
+    ballSelectedKey: 0,
+    participants: [],
+    rafflePrizes: [],
+    currentPrizeIndex: 0,
+    winnerList: [],
+    raffleParticipants: [],
+    colors: () => schemeCategory20c,
+    };
+},
+methods: {
+async fetchData() {
+    try {
+        // console.log(1)
+    const response = await axios.get('http://127.0.0.1:8000/api/raffle-participants')
+        .then(response => {
+            if (response.data && response.data["raffleParticipants"]) {
+            this.participants = response.data["raffleParticipants"];
+            this.rafflePrizes = response.data["rafflePrizes"];
+            console.log("RafflePrizes: ", this.rafflePrizes);
+            //   this.participantValues = this.participants.map(participant => participant.full_name);
+              // Update participant_list after data fetch
+            //   this.participant_list = this.participants;
+            console.log("participants:", this.participants);
+            
+            }
+        });
+    } catch (error) {
+        console.error(error);
+    }
+    },
+    pullLever() {
+this.leverPulled = true;
+this.ballSelectedKey++; 
+this.$nextTick(() => {
+    setTimeout(() => {
+    this.leverPulled = false;
+    this.currentPrizeIndex++;
+    this.isleftDoor = false;
+    this.isrightDoor = false;
+    this.lift = true;
+    this.ballSelected = true;
+    
+    this.$nextTick(() => {
+    setTimeout(() => {
+        this.lift = false;
+        this.isleftDoor = true;
+        this.isrightDoor = true;
+        this.ballRoll = true;
+        }, 1000);
+        setTimeout(() => {
+            this.isleftDoor = false;
+    this.isrightDoor = false;
+        }, 4500);
+    });
+    }, 7000);
+    this.isleftDoor = false;
+    this.isrightDoor = false;
+    this.ballRoll = false;
+    this.ballSelected = false;
+});
+},
+},
+mounted(){
+    
+    let ball_count = 0;
+    const marqueeStyle = document.createElement('style');
+    marqueeStyle.type = 'text/css';
+    document.head.appendChild(marqueeStyle);
+    this.fetchData().then(() => {
+        class LotteryMachine {
+            constructor(participants, rafflePrizes, winnerList, currentPrizeIndex, opt = {}) {
+                this.currentPrizeIndex = currentPrizeIndex;
+                this.rafflePrizes = rafflePrizes;
+                this.winnerList = winnerList;
+                let _def
+                _def = {
+                class: "lottery-machine",
+                viewClasses: {
+                    base : 'base' ,
+                    lever: 'lever',
+                    tube: 'tube',
+                    rightDoor: 'right-door',
+                    leftDoor: 'left-door',
+                    lift: 'lift',
+                    ball: 'ball',
+                    hoverArea: 'hover-area'
+                },
+                size: 592,
+                ball: {
+                    // count: 2000,
+                    count: participants.length,
+                    size: 36,
+                    colors: [
+                        "#c15bb6",
+                        "#8380c3",
+                        "#ffde7f",
+                        "#ff8f03",
+                        "#ec5767",
+                        "#ff8085"
+                    ]
+                },
+                duration: [200, 225]
+                }
+                // _ASSERT(opt.ball.count?, "opt.ball.count is required")
+                this.opt = $.extend(true, _def, opt)
+                this.view = null
+                this.views = {}
+                this.dom = { canvas: null }
+                this.balls = []
+                this.build()
+            }
+            build(opt = {}) {
+                let base, ref
+                base = this.dom
+                this.opt = $.extend(this.opt, opt)
+                if (this.view == null) {
+                    this.view = $("<div>", { class: `${this.opt.class}`});
+                    }
+                for (let key in this.opt.viewClasses) {
+                    this.views[key] = $("<div>", { class: `lottery-${this.opt.viewClasses[key]}`});
+                    this.views[key].appendTo(this.view);
+                }
+                if (base.canvas == null) {
+                    base.canvas = $("<canvas>", { class: `${this.opt.class}-canvas`}).appendTo(this.view)
+                }
+                // Добавить новые шарики
+                this.balls = function() {
+                let results = []
+                for (
+                    let j = 0, ref = this.opt.ball.count;
+                    0 <= ref ? j < ref : j > ref;
+                    0 <= ref ? j++ : j--
+                ) {
+                    results.push(j)
+                }
+                return results
+                }
+                .apply(this)
+                .map(i => {
+                return this.createBall()
+                })
+                this._setContext()
+                return this
+            }
+            // Form a new ball
+            createBall() {
+                let _from, _ball
+                _ball = {
+                    // Initial Animation Options
+                    from: {
+                        pos: (_from = this.getBallPos(false)),
+                        time: null
+                    },
+                    // Final Animation Options
+                    to: {
+                        pos: this.getRandomPos()
+                    },
+                    pos: _from,
+                    // Animation duration
+                    duration: this.getRandomDuration(),
+                    rotate: 0
+                }
+                return _ball
+            }
+            // Remember context for molecules
+            _setContext() {
+                let _ratio, _size
+                _ratio = this._getRatio()
+                _size = this.opt.size
+                this.dom.canvas
+                .attr({
+                    width: _size * _ratio,
+                    height: _size * _ratio
+                })
+                .css({
+                    width: _size,
+                    height: _size
+                })
+                this.ctx = this.dom.canvas[0].getContext("2d")
+                this.ctx.scale(_ratio, _ratio)
+                this.ctx.save()
+                return this
+            }
+            // Get canvas scaling factor
+            _getRatio() {
+                return (window.devicePixelRatio === 2 ? 2 : 1)
+            }
+            // Generate ball position
+            getRandomPos() {
+                let _angle, _m_radius, _pos, _radius, _t_radius, x, y
+                _angle = Math.random() * 2 * Math.PI
+                _radius = this.opt.size / 2
+                // Radius balls
+                _m_radius = this.opt.ball.size / 2
+                // Circle radius for calculating coordinates
+                // The radius of the balls is increased by 1/5 to eliminate gaps between the molecule and the walls of the test tube
+                _t_radius = _radius - _m_radius + 0.5 * _m_radius
+                // Координаты на окружности
+                y = Math.sin(_angle) * _t_radius
+                x = Math.cos(_angle) * _t_radius
+                _pos = {
+                left: _radius + x,
+                top: _radius - y
+                }
+                return _pos
+            }
+            // Generate ball position
+            getBallPos(random = true) {
+                let _angle, _m_radius, _pos, _radius, _t_radius, x, y, randomShift
+                randomShift = 0
+                if (random) {
+                _angle = Math.random() * 2 * Math.PI
+                } else {
+                _angle = 4 / 3 * Math.PI + Math.random() * Math.PI / 3
+                randomShift = Math.random() * 10 - 5
+                }
+                _radius = this.opt.size / 2
+                // Radius Balls
+                _m_radius = this.opt.ball.size / 2
+                // Circle radius for calculating coordinates
+                // Increased by 1/5 of the ball radius to eliminate gaps between the molecule and the walls of the test tube
+                _t_radius = _radius - _m_radius + 0.5 * _m_radius
+                // Coordinates on the circle
+                y = Math.sin(_angle) * _t_radius + randomShift
+                x = Math.cos(_angle) * _t_radius + randomShift
+                _pos = {
+                left: _radius + x,
+                top: _radius - y
+                }
+                return _pos
+            }
+            // Generate ball position
+            getRandomDuration() {
+                return Math.round(
+                Math.random() * [this.opt.duration[1] - this.opt.duration[0]] +
+                    this.opt.duration[0]
+                )
+            }
+            // Generate rotation angle
+            getRandomAngle() {
+                return Math.round(Math.random() * 4 * Math.PI - 2 * Math.PI)
+            }
+            // Draw one molecule
+            _drawBall(ball, index) {
+                let _pos, _radius
+                this.ctx.save()
+                // Позиция центра шарики
+                _pos = {
+                    left: parseInt(ball.pos.left, 10),
+                    top: parseInt(ball.pos.top, 10)
+                }
+                // Радиус шарики
+                _radius = this.opt.ball.size / 2
+                // Изменить начало координат
+                this.ctx.translate(_pos.left, _pos.top)
+                // Начальный угол поворота
+                this.ctx.rotate(ball.rotate)
+                this.ctx.moveTo(0, 0)
+                // Внешние окружности
+                this.ctx.beginPath()
+                this.ctx.fillStyle = this.opt.ball.colors[Math.floor(Math.random() * 7)]
+                this.ctx.arc(0, 0, _radius / 2, 0, 2 * Math.PI)
+                this.ctx.fill()
+                // Внутренние окружности
+                this.ctx.beginPath()
+                this.ctx.fillStyle = "#ffffff"
+                this.ctx.arc(_radius / 6, -_radius / 6, _radius / 8, 0, 2 * Math.PI)
+                this.ctx.fill()
+                this.ctx.restore()
+                return this
+            }
+            // Нарисовать шарики
+            drawBalls() {
+                if (!this.disabled) {
+                    this._clearBalls()
+                    this.balls.map((ball, index) => {
+                        return this._drawBall(ball, index)
+                    })
+                }
+                return this
+            }
+            // Произвольная анимация
+            animate(opt = {}, step, cb) {
+                let _deferred, _t_func, _time_from, def
+                // Значения по умолчанию
+                def = {
+                from: 0,
+                to: 1,
+                duration: 500,
+                step: 30
+                }
+                opt = $.extend(true, def, opt)
+                _deferred = $.Deferred()
+                if (!this.disabled) {
+                _time_from = Date.now()
+                // Auxiliary recursive function
+                _t_func = function() {
+                    let _k, _val
+                    // Animation progress
+                    _k = (Date.now() - _time_from) / opt.duration
+                    if (_k < 1) {
+                    _val = opt.from + _k * (opt.to - opt.from)
+                    step(_val)
+                    return setTimeout(_t_func, opt.step);
+                    // $.delay(opt.step, _t_func)
+                    } else {
+                    step(opt.to)
+                    _deferred.resolve()
+                    return typeof cb === "function" ? cb() : void 0
+                    }
+                }
+                _t_func()
+                } else {
+                _deferred.resolve()
+                }
+                return _deferred
+            }
+            // animation of mixing balls
+            _shakeBalls(now) {
+                this.views.lever.removeClass('hover').addClass('down');
+                this.balls.forEach(ball => {
+                //console.log(now);
+                // If the animation loop has ended or has not started
+                var _k, i, len, ref, type
+                if (ball.from.time == null || ball.from.time + ball.duration < now) {
+                    ball.from.time = now
+                    ball.from.pos = $.extend({}, ball.pos)
+                    ball.to.pos = this.getRandomPos()
+                    ball.to.rotate = this.getRandomAngle()
+                } else {
+                    // Recalculate coordinates
+                    _k = (now - ball.from.time) / ball.duration
+                    ref = ["left", "top"]
+                    for (i = 0, len = ref.length; i < len; i++) {
+                    type = ref[i]
+                    ball.pos[type] =
+                        ball.from.pos[type] +
+                        _k * (ball.to.pos[type] - ball.from.pos[type])
+                    ball.rotate = _k * ball.to.rotate
+                    }
+                }
+                })
+                this.drawBalls();
+            }
+            // аanimation of stopping mixing balls
+            _endShakeBalls(now){
+                const winnerSound = document.getElementById('winnerSound');
+                // setTimeout(function () {
+                //     winnerSound.play();
+                // }, 1000);
+                this.views.lever.removeClass('down')
+                this.balls.forEach(ball => {
+                    // If the animation loop has ended or has not started
+                    var _k, i, len, ref, type
+                    if (ball.from.time == null || ball.from.time + ball.duration < now) {
+                        ball.from.time = now
+                        ball.from.pos = $.extend({}, ball.pos)
+                        ball.to.pos = this.getBallPos(false)
+                        ball.to.rotate = this.getRandomAngle()
+                    } else {
+                        // Recalculate coordinates
+                        _k = (now - ball.from.time) / ball.duration
+                        ref = ["left", "top"]
+                        for (i = 0, len = ref.length; i < len; i++) {
+                        type = ref[i]
+                        ball.pos[type] =
+                            ball.from.pos[type] +
+                            _k * (ball.to.pos[type] - ball.from.pos[type])
+                        ball.rotate = _k * ball.to.rotate
+                        }
+                    }
+                })
+                this.drawBalls();
+            }
+            // play: shakeBalls + endShakeBalls
+            play(){
+                let _now = Date.now();
+                return this.animate({
+                from: _now,
+                // to: _now + 3000,
+                // duration: 3000,
+                to: _now + 8000,
+                duration: 8000,
+                step: 2
+                }, (now) => this._shakeBalls(now)
+                ).then(() => {
+                    _now = Date.now();
+                    this.animate({
+                    from: _now,
+                    to: _now + 500,
+                    duration: 500,
+                    step: 2
+                    }, (now) => this._endShakeBalls(now))
+                });
+            }
+            // animation of rolling ball out of machine
+            rollBallOut(parent, placeForBall, animationOpt, callback, raffleWinner, rafflePrizes, currentPrizeIndex, winnerList){ 
+                console.log("qwe", currentPrizeIndex);
+                const { ball, lift, rightDoor, leftDoor } = this.views;
+                const randomColor = this.opt.ball.colors[Math.floor(Math.random() * this.opt.ball.colors.length)];
+                const randomNumber = [Math.floor(Math.random() * 100)];
+                if(ball_count == 10){
+                    $('.clone, .half-ball, .paper-in-between').remove(); // Remove generated elements
+                    ball_count = 0;
+                }
+                ball
+                .removeClass("no-transition")
+                .attr('style', '')
+                .html('')
+                .css({ backgroundColor: randomColor })
+                .addClass("blink");
+                function liftBallUp(){
+                    return new Promise(resolve => {
+                        ball.addClass('animation-up');
+                        setTimeout(resolve, 1000);
+                    });
+                }
+                function liftBallDown(){
+                    return new Promise(resolve => {
+                        ball.addClass("animation-roll");
+                        setTimeout(resolve, 1500);
+                    });
+                }
+                function openDoors(){
+                    return new Promise(resolve => {
+                        ball.css({ zIndex: 2 })
+                            // .html(raffleWinner)
+                            .addClass("no-transition")
+                            .removeClass("blink animation-roll animation-up");
+                        rightDoor.addClass("animation");
+                        leftDoor.addClass("animation");
+                        setTimeout(resolve, 1000);
+                    });
+                }
+                function moveBallOut() {
+                    const startCoords = ball.offset();
+                    let start = {
+                        top: 605,
+                        left: 305
+                    }
+                    const endCoords = placeForBall.offset();
+                    const spacingInterval = 6; // Adjust spacing every 5 balls
+                    const spacingOffset = -380  ; // Initial spacing offset
+                    const leftSpacing = endCoords.left + spacingOffset;
+                    // Calculate the resetTop based on leftSpacing adjustment
+                    const resetTop = (Math.floor(ball_count / spacingInterval) * spacingInterval) * 100;
+                    const nextBallPosition = {
+                        top: endCoords.top + (ball_count * 100) - resetTop,
+                        left: leftSpacing,
+                    };
+                    const animatedBall = ball
+                        .clone()
+                        .addClass('clone')
+                        .css(start)
+                        .appendTo(parent);
+                    ball_count++
+                    return new Promise(resolve => {
+                        gsap.to(animatedBall, 1, {
+                            ...animationOpt,
+                            x: -(start.left - nextBallPosition.left),
+                            y: -(start.top - nextBallPosition.top),
+                            ease: Power2.easeInOut,
+                            parseTransform: true,
+                            onStart: () => {
+
+                            },
+                            onComplete: () => {
+                                // Create two halves of the ball
+                                const halfWidth = animatedBall.width() / 2;
+
+                                const raffleWinnerText = raffleWinner.full_name;
+                                const textWidth = $('<span>').text(raffleWinnerText).css({
+                                    'font-family': 'Evogria',
+                                    'font-size': '16px',
+                                    'visibility': 'hidden', // Hide the element from view
+                                    'white-space': 'nowrap', // Prevent text wrapping
+                                    'display': 'inline-block',
+                                }).appendTo('body').width(); // Append to body to calculate the width
+
+                                // Adding some padding to the calculated width for better visual appearance
+                                const paperWidth = textWidth + 50; // Adjust padding as needed
+
+                                // Create the first half
+                                const firstHalf = $('<div>').addClass('half-ball').css({
+                                    width: halfWidth,
+                                    height: animatedBall.height(),
+                                    overflow: 'hidden',
+                                    position: 'absolute',
+                                    top: animatedBall.position().top,
+                                    left: animatedBall.position().left,
+                                    backgroundColor: animatedBall.css('background-color'), // Match original ball color
+                                    zIndex: 100
+                                }).appendTo(parent);
+
+                                // Create the second half
+                                const secondHalf = $('<div>').addClass('half-ball').css({
+                                    width: halfWidth,
+                                    height: animatedBall.height(),
+                                    overflow: 'hidden',
+                                    position: 'absolute',
+                                    top: animatedBall.position().top,
+                                    left: animatedBall.position().left + halfWidth,
+                                    backgroundColor: animatedBall.css('background-color'), // Match original ball color
+                                    zIndex: 100
+                                }).appendTo(parent);
+
+                                // Set the border-radius to create half circles
+                                firstHalf.css({ 'border-top-left-radius': '50%', 'border-bottom-left-radius': '50%' });
+                                secondHalf.css({ 'border-top-right-radius': '50%', 'border-bottom-right-radius': '50%', 'margin-left' : 10 + textWidth + 'px'});
+
+                                // Calculate the space between halves based on raffleWinner width
+                                const raffleWidth = $(`<span>${raffleWinner.full_name}</span>`).width();
+                                const spaceBetween = (halfWidth - raffleWidth) / 2;
+
+                                // Adjust positions for spacing based on raffleWinner width
+                                firstHalf.css('padding-right', spaceBetween);
+                                secondHalf.css('padding-left', spaceBetween);
+
+                                const paperHeight = 40; // Set the desired height for the paper
+                                const textMarginTop = (paperHeight - 16) / 2; // Assuming font-size is 16px
+
+                                // Create a div for the paper effect
+                                const paperInBetween = $('<div>').addClass('paper-in-between').css({
+                                    width: 10 + textWidth + 'px', // Adjust the width as needed for the paper strip
+                                    height: paperHeight + 'px', // Set the height of the paper
+                                    position: 'absolute',
+                                    top: animatedBall.position().top + ((animatedBall.height() - paperHeight) / 2), // Center vertically between the halves
+                                    left: animatedBall.position().left + halfWidth - 1, // Position the paper in between the halves
+                                    backgroundColor: 'lightgray', // Set the color resembling paper texture or pattern
+                                    zIndex: 99, // Set the zIndex lower than halves to appear between them
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                }).appendTo(parent);
+
+                                // Create a div to hold the raffleWinner text
+                                const raffleText = $('<div>').addClass('raffle-text').css({
+                                    color: 'black', // Set text color
+                                    fontFamily: 'Evogria', // Set font family
+                                    fontSize: '16px', // Set font size
+                                    marginTop: '5px', // Center text vertically
+                                }).text(raffleWinner.full_name).appendTo(paperInBetween); // Append text inside the paper
+
+                                const duration = 5 * 1000,
+                                animationEnd = Date.now() + duration,
+                                defaults = { startVelocity: 20, spread: 360, ticks: 90, zIndex: 0 };
+
+                                function randomInRange(min, max) {
+                                    return Math.random() * (max - min) + min;
+                                }
+
+                                const interval = setInterval(function() {
+                                const timeLeft = animationEnd - Date.now();
+
+                                if (timeLeft <= 0) {
+                                    return clearInterval(interval);
+                                }
+
+                                const particleCount = rafflePrizes[currentPrizeIndex].code != 'Grand Prize' ? 50 * (timeLeft / duration) : 80 * (timeLeft / duration);
+
+                                // since particles fall down, start a bit higher than random
+                                confetti(
+                                    Object.assign({}, defaults, {
+                                    particleCount:180,
+                                    origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+                                    })
+                                );
+                                confetti(
+                                    Object.assign({}, defaults, {
+                                        particleCount:180,
+                                    origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+                                    })
+                                );
+                                }, 250);
+                                var selectedName = raffleWinner.full_name;
+                                var ticket_num = raffleWinner.full_name;
+                                let department = raffleWinner.department
+                                let prizeInfo = {};
+                                if(rafflePrizes[currentPrizeIndex].winner_count != 0){
+                                    prizeInfo.name = rafflePrizes[currentPrizeIndex].name  
+                                }
+                                console.log("qwe", currentPrizeIndex);
+
+                                Swal.fire({
+                                    title: "Congratulations!",
+                                    html: `Name: ${selectedName}<br>Department: ${department}`,
+                                    // icon: "success",
+                                    timer: 2000,
+                                    showCancelButton: false,
+                                    showConfirmButton: false,
+                                    backdrop: false,
+                                    showClass: {
+                                        popup: 'animate__animated animate__fadeInDown'
+                                    },
+                                    hideClass: {
+                                        popup: 'animate__animated animate__fadeOutUp'
+                                    },
+                                });
+
+                                let formData = new FormData();
+                                formData.append('winnerID',raffleWinner.value)
+                                formData.append('multiple', 0)
+                                formData.append('prize_id', rafflePrizes[currentPrizeIndex].id)
+
+                                axios.post('http://127.0.0.1:8000/api/save-winner', formData)
+                                .then((res)=>{
+
+                                }).catch((err)=>{
+                                    console.log(err)
+                                    Swal.close()
+                                    Swal.fire(
+                                    "",
+                                    err.responseJSON && err.responseJSON.message,
+                                    "error"
+                                    ).then((result) => {
+                                        if (result.isConfirmed) {
+                                            window.location.reload();
+                                            Swal.close()
+                                        }
+                                    });
+                                })
+
+                                animatedBall.remove();
+                                rightDoor.removeClass("animation");
+                                leftDoor.removeClass("animation");
+
+                                animatedBall.remove();
+                                rightDoor.removeClass("animation");
+                                leftDoor.removeClass("animation");
+
+                                const currentPrize = rafflePrizes[currentPrizeIndex];
+                                console.log("currentPrize, ", currentPrizeIndex);
+                                const imagePath = `http://127.0.0.1:8000/${currentPrize.image_path}`;
+                                const prizeImage = $('<img>').attr('src', imagePath).css({                                    
+                                    position: 'fixed',
+                                    top: '50%', // Position at the vertical center of the viewport
+                                    left: '50%', // Position at the horizontal center of the viewport
+                                    transform: 'translate(-50%, -50%) scale(0)', // Initially scaled to 0
+                                    zIndex: 9999, // Set a high zIndex to ensure it's above other elements
+                                    transition: 'transform 0.5s ease-in-out', // Add a transition for smooth scaling
+                                }).appendTo('body'); // Append to the document body
+
+                                // Create a div for the prize name
+                                const prizeName = $('<div>').text(`You won a ${rafflePrizes[currentPrizeIndex].name}`).css({
+                                    position: 'fixed',
+                                    top: '70%', // Position slightly below the prize image
+                                    left: '50%', // Position at the horizontal center of the viewport
+                                    transform: 'translateX(-50%)', // Center the text horizontally
+                                    fontSize: '24px', // Set font size
+                                    color: 'white', // Set text color
+                                    zIndex: 9999, // Set a high zIndex to ensure it's above other elements
+                                    opacity: 0, // Initially hidden
+                                    transition: 'opacity 0.5s ease-in-out', // Add a transition for opacity
+                                }).appendTo('body'); // Append to the document body
+
+                                // After a short delay (to allow the confetti or other effects to finish)
+                                setTimeout(() => {
+
+                                    const viewportWidth = window.innerWidth;
+                                    const viewportHeight = window.innerHeight;
+
+                                    // Calculate the 50% of the viewport size for the image
+                                    const scaledWidth = viewportWidth * 0.5;
+                                    const scaledHeight = viewportHeight * 0.5;
+
+                                    // Animate the prize image to the center with a zoom effect and 50% of the viewport size
+                                    prizeImage.css({
+                                        transform: `translate(-50%, -50%) scale(${scaledWidth / prizeImage.width()}, ${scaledHeight / prizeImage.height()})`, // Scale to 50% of viewport size
+                                    });
+
+                                    // Show the prize name with a fade-in effect
+                                    setTimeout(() => {
+                                        prizeName.css({
+                                            opacity: 1, // Fade in the prize name
+                                            // Add some attractive styling to the prize name
+                                            fontFamily: 'Arial, sans-serif', // Change font family
+                                            fontSize: '24px', // Adjust font size
+                                            fontWeight: 'bold', // Make it bold
+                                            textTransform: 'uppercase', // Convert text to uppercase
+                                            color: '#FF6347', // Change text color
+                                            background: 'linear-gradient(45deg, #FFD700, #FFA500)', // Add gradient background
+                                            WebkitBackgroundClip: 'text', // Clip text to the background shape
+                                            WebkitTextFillColor: 'transparent', // Hide the original text fill
+                                            textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)', // Add shadow
+                                        });
+                                    }, 1000); // Show the prize name after 1 second
+
+                                    // After 4 seconds, hide or remove the prize image and name
+                                    setTimeout(() => {
+                                        prizeImage.css({
+                                            transform: 'translate(-50%, -50%) scale(0)', // Scale back to 0 for disappearance
+                                        });
+                                        prizeName.css({
+                                            opacity: 0, // Hide the prize name
+                                        });
+                                        // If you want to remove the elements from the DOM after they disappear:
+                                        // prizeImage.remove();
+                                        // prizeName.remove();
+                                    }, 4000); // Wait 4 seconds before hiding the image and name
+                                }, 2000); // Wait 2 seconds before showing the image
+
+                                // rafflePrizes[currentPrizeIndex].winner_count--
+                                winnerList.push({
+                                    name: selectedName, prize: rafflePrizes[currentPrizeIndex].name
+                                })
+                               
+                                console.log("currentPrizeIndex before increment: " + currentPrizeIndex);
+                                // currentPrizeIndex++;
+                                console.log("currentPrizeIndex after increment: " + currentPrizeIndex);
+                                // displayWinners();
+                                getNextRaffleParticipants(rafflePrizes[currentPrizeIndex].code)
+                                resolve();
+                            }
+                        });
+                    })
+                }
+
+                liftBallUp()
+                .then(() => liftBallDown())
+                .then(() => openDoors())
+                .then(() => moveBallOut())
+                .then(() => setTimeout(callback, 1000));
+            }
+
+            // Add an instance to the DOM tree
+            draw(parent) {
+                this.view.appendTo(parent);
+                this.ctx.save()
+                this.ctx.translate(0, 0)
+                this.ctx.beginPath()
+                this.ctx.fillStyle = "#ff0000"
+                this.ctx.arc(70, 70, 70, 0, 2 * Math.PI)
+                this.ctx.fill()
+                this.drawBalls()
+                return this
+            }
+
+            // Очисить канвас
+            _clearBalls() {
+                this.ctx.clearRect(0, 0, this.opt.size, this.opt.size)
+                return this
+            }
+
+            clear() {
+                this.view.remove()
+                this.dom.canvas = null
+                this.balls = []
+                return this
+            }
+            }
+
+            // main variables
+                const $scene = $('.scene');
+                const $ballPlace = $('#ball-place');
+                const $button = $('button#play');
+                const ballAnimationOpt = {
+                width: 70,
+                height: 70,
+                fontSize: 32
+            };
+            // init LotteryMachine
+            let lotteryMachine = new LotteryMachine(this.participants, this.rafflePrizes, this.currentPrizeIndex, this.winnerList);
+            lotteryMachine.draw($scene);
+            const handleClick = () => {
+                // const lottoSound = document.getElementById('lottoSound');
+                // lottoSound.play();
+                const randomNumber = [Math.floor(Math.random() * this.participants.length)];
+                let winnerList = this.winnerList;
+                let rafflePrizes = this.rafflePrizes;
+                let currentPrizeIndex = this.currentPrizeIndex;
+                console.log("ilalim:", currentPrizeIndex);
+                console.log("raffleprices:", rafflePrizes);
+
+                let raffleWinner = this.participants[randomNumber]
+                console.log("raffleWinner:", raffleWinner);
+                this.participants.splice(randomNumber, 1)
+                console.log(this.participants);
+                $button.off('click');
+                lotteryMachine
+                    .play()
+                    .then(() => lotteryMachine.rollBallOut($scene, $ballPlace, ballAnimationOpt, () => $button.on('click', handleClick), raffleWinner, rafflePrizes, currentPrizeIndex, winnerList));
+        };
+        $button.on('click', handleClick);
+        function getNextRaffleParticipants(prizeCode){
+            let formData = new FormData();
+            formData.append('prize_code', prizeCode)
+            console.log("testNexxtRaffle", prizeCode);
+            let participants = [];
+             axios.post('http://127.0.0.1:8000/api/getPrize-raffle-participants', formData)
+             .then((res)=>{
+                participants = res
+            }).catch((err)=>{
+                console.log(err)
+                Swal.close()
+                Swal.fire(
+                    "",
+                    err.responseJSON && err.responseJSON.message,
+                    "error"
+                ).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.reload();
+                        Swal.close()
+                    }
+                });
+            })
+        }
+        $(document).ready(function(){
+        getNextRaffleParticipants('10th Prize')
+        axios.get('http://127.0.0.1:8000/api/raffle-participants')
+        .then(response => {
+            if (response.data && response.data["raffleParticipants"]) {
+            this.raffleParticipants = response.data["raffleParticipants"];
+            this.rafflePrizes = response.data["rafflePrizes"];
+            }
+            var raffleParticipants = this.raffleParticipants;
+            var rafflePrizes = this.rafflePrizes;
+        // var rafflePrizes = <?php echo json_encode($rafflePrizes); ?>;
+        let winnerIDS = [];
+        let default_draw_type = 2
+        $('#draw_type').val(default_draw_type)
+
+        $('#chart').addClass('d-none');
+        $('.scene').removeClass('d-none');
+        $('#lottery_col').addClass('col-lg-12');
+        $('#winners_col').removeClass('col-4');
+        $('#winners_col').addClass('col-5');
+        
+        // var padding = {top:20, right:40, bottom:0, left:0},
+        //     w = 500 - padding.left - padding.right,
+        //     h = 500 - padding.top  - padding.bottom,
+        //     r = Math.min(w, h)/2,
+        //     rotation = 0,
+        //     oldrotation = 0,
+        //     picked = 100000,
+        //     oldpick = [],
+        //      colors = schemeCategory20c;
+            
+        var data = raffleParticipants;
+        console.log("datsaDulo:", data);
+        // var svg = d3.select('#chart')
+        //     .append("svg")
+        //     .data([data])
+        //     .attr("width",  w + padding.left + padding.right)
+        //     .attr("height", h + padding.top + padding.bottom)
+        //     .style({"font-weight":"bold", "font-family": 'Evogria'});
+        // var container = svg.append("g")
+        //     .attr("class", "chartholder")
+        //     .attr("transform", "translate(" + (w/2 + padding.left) + "," + (h/2 + padding.top) + ")");
+        // var vis = container
+        //     .append("g");
+
+        // var pie = d3.layout.pie().sort(null).value(function(d){return 1;});
+        // // declare an arc generator function
+        // var arc = d3.svg.arc().outerRadius(r);
+        // // select paths, use arc generator to draw
+        // var arcs = vis.selectAll("g.slice")
+        //     .data(pie)
+        //     .enter()
+        //     .append("g")
+        //     .attr("class", "slice");
+
+        // arcs.append("path")
+        //     .attr("fill", function(d, i){ return color(i); })
+        //     .attr("d", function (d) { return arc(d); });
+        // // add the text
+        // arcs.append("text").attr("transform", function(d){
+        //         d.innerRadius = 0;
+        //         d.outerRadius = r;
+        //         d.angle = (d.startAngle + d.endAngle)/2;
+        //         return "rotate(" + (d.angle * 180 / Math.PI - 90) + ")translate(" + (d.outerRadius -10) +")";
+        //     })
+        //     .attr("text-anchor", "end")
+        //     .style({"font-size":"12px"})
+        //     .text( function(d, i) {
+        //         return data[i].employee_id;
+        //     });
+        // container.on("click", spin);
+
+        // Spin the wheel
+        function spin(d){
+
+            container.on("click", null);
+            //all slices have been seen, all done
+            if(oldpick.length == data.length){
+                // console.log("done");
+                container.on("click", null);
+                return;
+            }
+            var  ps       = 360/data.length,
+                pieslice = Math.round(1440/data.length),
+                 rng      = Math.floor((Math.random() * 10000) + 10000);
+            rotation = (Math.round(rng / ps) * ps);
+            picked = Math.round(data.length - (rotation % 360)/ps);
+            picked = picked >= data.length ? (picked % data.length) : picked;
+            if(oldpick.indexOf(picked) !== -1){
+                d3.select(this).call(spin);
+                return;
+            } else {
+                oldpick.push(picked);
+            }
+            rotation += 90 - Math.round(ps/2);
+            vis.transition()
+                .duration(6000)
+                .attrTween("transform", rotTween)
+                .ease("cubic-out")
+                .each("end", function(){
+                    d3.select(".slice:nth-child(" + (picked + 1) + ") path")
+                        .attr("fill", "white");
+
+                    oldrotation = rotation;
+                    var selectedName = data[picked].full_name;
+                    var ticket_num = data[picked].full_name;
+                    Swal.fire({
+                        title: "Congratulations!",
+                        html: `Name: ${selectedName}<br>Prize: ${ticket_num}`,
+                        // icon: "success",
+                        timer: 3000,
+                        showCancelButton: false,
+                        showConfirmButton: false,
+                        backdrop: false,
+                        showClass: {
+                            popup: 'animate__animated animate__fadeInDown'
+                        },
+                        hideClass: {
+                            popup: 'animate__animated animate__fadeOutUp'
+                        },
+                    });
+
+                    confetti({
+                        spread: 1000,
+                        ticks: 2000,
+                        gravity: 1,
+                        decay: 2.94,
+                        startVelocity: 30,
+                        particleCount: 600,
+                        scalar: 3,
+                        origin: { y: 0.6 },
+                        shapes: ["image"],
+                        shapeOptions: {
+                            image: [
+                                {
+                                    src: "images/confetti/ingco_tool.png",
+                                    width: 32,
+                                    height: 32,
+                                },
+                                {
+                                    src: "images/confetti/ingco_wrench.png",
+                                    width: 32,
+                                    height: 32,
+                                },
+                                // {
+                                //     src: "images/confetti/ingco_generator.png",
+                                //     width: 32,
+                                //     height: 32,
+                                // },
+                            ],
+                        },
+                    });
+
+                    oldrotation = rotation;
+                    /* Get the result value from object "data" */
+                    // console.log(data[picked].value)
+                    $('#noDataPlaceholder').hide();
+                    $('#winnerData').append(`
+                            <tr>
+                                <td class="g-color-black" style="font-family:'Evogria'">${data[picked].full_name}</td>
+                                <td class="g-color-black" style="font-family:'Evogria'">${data[picked].full_name}</td>
+                                <td class="g-color-black" style="font-family:'Evogria'">${data[picked].store_branch_ecommerce_name}</td>
+                            </tr>
+                        `
+                    );
+                    winnerIDS.push(data[picked].value)
+                    /* Comment the below line for restrict spin to sngle time */
+                    let formData = new FormData();
+                    formData.append('winnerID',data[picked].value)
+                    formData.append('multiple',0)
+
+                    axios.post('http://127.0.0.1:8000/api/save-winner', formData)
+                    .then((res)=>{
+
+                    }).catch((err)=>{
+                        console.log(err)
+                        Swal.close()
+                        Swal.fire(
+                    "",
+                    err.responseJSON && err.responseJSON.message,
+                    "error"
+                        ).then((result) => {
+                            if (result.isConfirmed) {
+                                window.location.reload();
+                                Swal.close()
+                            }
+                        });
+                    })
+                    container.on("click", spin);
+                });
+        }
+        //make arrow
+        // svg.append("g")
+        //     .attr("transform", "translate(" + (w + padding.left + padding.right) + "," + ((h/2)+padding.top) + ")")
+        //     .append("path")
+        //     .attr("d", "M-" + (r*.15) + ",0L0," + (r*.05) + "L0,-" + (r*.05) + "Z")
+        //     .style({"fill":'#f69f1a'});
+
+        // //draw spin circle
+        // container.append("circle")
+        //     .attr("cx", 0)
+        //     .attr("cy", 0)
+        //     .attr("r", 60)
+        //     .style({"fill":"#f69f1a","cursor":"pointer"});
+        // //spin text
+        // container.append("text")
+        //     .attr("x", 0)
+        //     .attr("y", 15)
+        //     .attr("text-anchor", "middle")
+        //     .text("SPIN")
+        //     .style({"font-weight":"bold", "font-size":"30px", "font-family": 'Evogria','fill':'black'});
+
+
+        // function rotTween(to) {
+        //   var i = d3.interpolate(oldrotation % 360, rotation);
+        //   return function(t) {
+        //     return "rotate(" + i(t) + ")";
+        //   };
+        // }
+
+
+        function getRandomNumbers(){
+            var array = new Uint16Array(1000);
+            var scale = d3.scale.linear().range([360, 1440]).domain([0, 100000]);
+            if(window.hasOwnProperty("crypto") && typeof window.crypto.getRandomValues === "function"){
+                window.crypto.getRandomValues(array);
+                // console.log("works");
+            } else {
+                //no support for crypto, get crappy random numbers
+                for(var i=0; i < 1000; i++){
+                    array[i] = Math.floor(Math.random() * 100000) + 1;
+                }
+            }
+            return array;
+        }
+
+        $('.fullscreen_btn').click(function(e){
+            window.location.href = 'winnerDraw?pc='+ rafflePrizes.code
+            // window.open('http://127.0.0.1:8001/winnerDraw?promo_code=ABC123')
+        })
+
+        $('#draw_type').change(function(e){
+            let value = $(this).val();
+            // If Spin the wheel
+            if(value == 1){
+                $('#chart').removeClass('d-none');
+                $('#wheel_col').removeClass('col-lg-4');
+                $('#wheel_col').addClass('col-lg-11');
+                $('#lottery_col').addClass('col-lg-12');
+                $('.scene').addClass('d-none');
+            }else{
+                // Else Lottery
+                $('#chart').addClass('d-none');
+                $('.scene').removeClass('d-none');
+                $('#lottery_col').addClass('col-lg-12');
+                $('#winners_col').removeClass('col-4');
+                $('#winners_col').addClass('col-4');
+            }
+        })
+    });
+    })
+},
+    )}
+};
+</script>
+
+<style scoped>
+
+    #stage {
+    margin: 0 auto;
+    width: 600px;
+    padding: 0 0 40px;
+    }
+
+    .perspective-on {
+    -webkit-perspective: 1000px;
+        -moz-perspective: 1000px;
+            perspective: 1000px;    /* Setting the perspective of the contents of the stage but not the stage itself*/
+    }
+    .perspective-off {
+    -webkit-perspective: 0;
+        -moz-perspective: 0;
+            perspective: 0;
+    }
+
+    #rotate {
+    margin: 0 auto 0;
+    width: 450px;
+    height: 220px;
+    padding-top: 200px;
+    /* Ensure that we're in 3D space */
+    transform-style: preserve-3d;
+    }
+
+    .ring {
+        margin: 0 auto;
+        height: 80px;
+        width: 90px;
+        float: left;
+        transform-style: preserve-3d;
+    }
+    .slot {
+    position: absolute;
+    width: 90px;
+    height: 80px;
+    box-sizing: border-box;
+    opacity: 0.9;
+    color: rgba(0,0,0,0.9);
+    background: #fff;
+    border: solid 2px #000;
+    -webkit-backface-visibility: hidden;
+        -moz-backface-visibility: hidden;
+            backface-visibility: hidden;
+    }
+
+    .backface-on {
+    -webkit-backface-visibility: visible;
+        -moz-backface-visibility: visible;
+            backface-visibility: visible;
+    }
+
+    .slot p {
+    font-size: 36px;
+    font-weight: bold;
+    line-height: 80px;
+    margin: 0;
+    text-align: center;
+    }
+
+    .go {
+    display: block;
+    margin: 0 auto 20px;
+    padding:10px 30px;
+    font-size: 20px;
+    cursor: pointer;
+    }
+    full_name {
+    cursor: pointer;
+    display: inline-block;
+    width: 45%;
+    text-align: center;
+    }
+    .tilted {
+    transform: rotateY(45deg);
+    }
+    /*=====*/
+    .spin-0     { transform: rotateX(-3719deg); }
+    .spin-1     { transform: rotateX(-3749deg); }
+    .spin-2     { transform: rotateX(-3779deg); }
+    .spin-3     { transform: rotateX(-3809deg); }
+    .spin-4     { transform: rotateX(-3839deg); }
+    .spin-5     { transform: rotateX(-3869deg); }
+    .spin-6     { transform: rotateX(-3899deg); }
+    .spin-7     { transform: rotateX(-3929deg); }
+    .spin-8     { transform: rotateX(-3959deg); }
+    .spin-9     { transform: rotateX(-3989deg); }
+    .spin-10    { transform: rotateX(-4019deg); }
+    .spin-11    { transform: rotateX(-4049deg); }
+    /*=====*/
+    @keyframes back-spin {
+        /*0%    { transform: rotateX(0deg); }*/
+        100%  { transform: rotateX(30deg); }
+    }
+    @keyframes tiltin {
+        0%    { transform: rotateY(0deg);}
+        50%   { transform: rotateY(0deg);}
+        100%  { transform: rotateY(45deg);}
+    }
+    @keyframes tiltout {
+        0%    { transform: rotateY(45deg);}
+        100%  { transform: rotateY(0deg);}
+    }
+
+    @keyframes spin-0 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-3719deg); }
+    }
+    @keyframes spin-1 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-3749deg); }
+    }
+    @keyframes spin-2 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-3779deg); }
+    }
+    @keyframes spin-3 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-3809deg); }
+    }
+    @keyframes spin-4 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-3839deg); }
+    }
+    @keyframes spin-5 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-3869deg); }
+    }
+    @keyframes spin-6 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-3899deg); }
+    }
+    @keyframes spin-7 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-3929deg); }
+    }
+    @keyframes spin-8 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-3959deg); }
+    }
+    @keyframes spin-9 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-3989deg); }
+    }
+    @keyframes spin-10 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-4019deg); }
+    }
+    @keyframes spin-11 {
+        0%    { transform: rotateX(30deg); }
+        100%  { transform: rotateX(-4049deg); }
+    }
+    text{
+        font-family:Helvetica, Arial, sans-serif;
+        font-size:11px;
+        pointer-events:none;
+    }
+    #chart{
+        width:500px;
+        height:500px;
+        top:0;
+        left:0;
+    }
+    #question{
+        position: absolute;
+        width:400px;
+        height:500px;
+        top:0;
+        left:520px;
+    }
+    #question h1{
+        font-size: 50px;
+        font-weight: bold;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        position: absolute;
+        padding: 0;
+        margin: 0;
+        top:50%;
+        -webkit-transform:translate(0,-50%);
+                transform:translate(0,-50%);
+    }
+    button {
+        font-family: "Open Sans";
+        color: #fff;
+        text-align: center;
+        position: absolute;
+        top: 345px;
+        left: 160px;
+        font-size: 18px;
+        border: none;
+        width: 158px;
+        border-radius: 3px;
+        padding: 10px;
+        background-color: #f69f1a;
+        box-sizing: border-box;
+        cursor: pointer;
+    }
+    .scene {
+        font-family: "Open Sans";
+    }
+    #lottery {
+        position: relative;
+    }
+
+    /* where ball placed after draw */
+    #ball-place {
+        position: absolute;
+        top: 0px;
+        left: 160%;
+    }
+
+    @media (min-width: 1480px) {
+        #ball-place {
+            position: absolute;
+            top: 0px;
+            left: 160%;
+        }
+    }
+
+    .lottery-machine {
+        position: inherit;
+        border-radius: 100%;
+        width: 200px;
+        height: 0.1px;
+    }
+    .lottery-machine-canvas {
+        position: inherit;
+        top: 0px;
+        width: 700px;
+        height: 700px;
+        padding: 7px;
+        border-radius: inherit;
+        box-sizing: border-box;
+        transition: opacity 0.7s;
+    }
+    .lottery-machine::before {
+    content: '';
+    position: absolute;
+    top: 0px;
+    width: 600px;
+    left: -5px;
+    height: 600px;
+    background-color: rgba(13, 34, 40, 0.3);
+    border: 7px solid #f69f1a;
+    border-radius: inherit;
+    box-sizing: border-box;
+    transition: opacity 0.7s;
+    animation: neonGlow 1s infinite alternate;
+    background-position: center;
+
+}
+.lottery-machine::after {
+    content: '';
+    position: absolute;
+    top: 0px;
+    width: 600px;
+    left: -5px;
+    height: 600px;
+    border-radius: inherit;
+    box-sizing: border-box;
+    transition: opacity 0.7s;
+    background-position: center;
+    background-image: 
+        url('../../src//assets/ingconight.png'), /* First image */
+        url('../../src//assets/masqqpng.png');   /* Second image */
+    background-size: 
+        200px,  /* Size for INGCONITE.png */
+        550px; /* Size for masqqpng.png */
+    background-position: 
+        center, /* Position for INGCONITE.png */
+        center 10px;    /* Position for masqqpng.png */
+        z-index: -1; 
+}
+    @keyframes neonGlow {
+    from {
+        box-shadow: 0 0 0px 0px #f69f1a;
+    }
+    to {
+        box-shadow: 0 0 5px 1px #8f1475;
+    }
+}
+    .lottery-machine.disabled .lottery-machine-canvas {
+        opacity: 0;
+        pointer-events: none;
+    }
+    .lottery-machine.disabled::after {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    /*
+    .lottery-machine .lottery-base {
+    position: absolute;
+    background-image: url('https://svgur.com/i/DH4.svg');
+    width: 165px;
+    height: 75px;
+    left: 0;
+    top: 141px;
+    z-index: 2;
+    } */
+
+    .lottery-machine .lottery-lever {
+    position: absolute;
+    background-image: url('https://svgur.com/i/DGD.svg');
+    width: 830px;
+    height: 23px;
+    left: 340px;
+    top: 605px;
+    transition: transform 0.5s;
+    transform-origin: left center;
+    }
+
+    .lottery-machine .lottery-lever.hover {
+        transform: rotate(-10deg);
+    }
+    .lottery-machine .lottery-lever.down {
+        transform: rotate(20deg);
+    }
+
+    /* .lottery-machine .lottery-tube {
+    position: absolute;
+    background-image: url('https://svgur.com/i/DHH.svg');
+    width: 110px;
+    height: 182px;
+    left: 61px;
+    top: 3px;
+    z-index: 1;
+    } */
+    .lottery-machine .lottery-right-door, .lottery-machine .lottery-left-door {
+        position: absolute;
+        background-image: url('https://svgur.com/i/DJ5.svg');
+        width: 50px;
+        height: 29px;
+        left: 17px;
+        margin-left: 280px;
+        margin-top: 180px;
+        top: 420px;
+        z-index: 4;
+        transition: left 0.75s;
+    }
+    .lottery-machine .lottery-right-door.animation, .lottery-machine .lottery-left-door.animation {
+        left: 25px;
+
+    }
+    .lottery-machine .lottery-left-door {
+        background-image: url('https://svgur.com/i/DHF.svg');
+        left: -14.5px;
+
+    }
+    .lottery-machine .lottery-left-door.animation {
+        left: -25px;
+    }
+    .lottery-machine .lottery-lift {
+        position: absolute;
+        background-color: #f00000;
+        width: 13px;
+        height: 0;
+        left: 290px;
+        top: 625px;
+        box-sizing: border-box;
+        border: 1px solid #f69f1a;
+        border-radius: 2px;
+        transition: top 1s, height 1s;
+        z-index: 1;
+    }
+    .lottery-machine .lottery-lift.animation {
+        top: 0px;
+        height: 500px;
+    }
+    .lottery-machine .lottery-ball {
+    width: 15px; /* Increase size for better visibility */
+    height: 15px; /* Increase size for better visibility */
+    line-height: 1.380;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    border-radius: 50%;
+    position: absolute;
+    left: 288.8px;
+    top: 610px;
+    transition: top 1s, transform 0.75s ease-in;
+    background: linear-gradient(to right, violet, indigo, blue, green, yellow, orange, red); /* Rainbow gradient */
+    background-size: 200% auto;
+    animation: rainbow 5s linear infinite;
+    transition: top 1s, transform 1s ease-in;
+}
+@keyframes rainbow {
+    0% {
+        background-position: 0 0; /* Start position of the gradient */
+    }
+    100% {
+        background-position: 200% 0; /* End position of the gradient */
+    }
+}
+.lottery-machine .lottery-ball::before {
+    content: "✪"; /* Insert question mark */
+    color: #f69f1a; /* Color of the question mark */
+    font-size: 14px; /* Size of the question mark */
+    transform: rotate(-180deg); 
+}
+    .lottery-machine .lottery-ball.invisible {
+        opacity: 0;
+    }
+    .lottery-machine .lottery-ball.animation-up {
+        top: -10px;
+    }
+    .lottery-machine .lottery-ball.animation-roll {
+        transform-origin: 7.3px 317px;
+        transform: rotate(180deg);
+    }
+    .lottery-machine .lottery-ball.blink:after {
+        content: '';
+        background-color: #fff;
+        position: absolute;
+        left: 10px;
+        top: 4px;
+        width: 40px;
+        height: 40px;
+        transform-origin: 0 0;
+        transform: rotate(0);
+    }
+    .lottery-machine .lottery-ball.no-transition {
+        transition: none;
+    }
+    .lottery-machine .lottery-hover-area {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 214px;
+        width: 100%;
+        z-index: 5;
+    }
+    ::v-deep .lottery-ball.clone {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        font-size: 12px;
+        line-height: 1.375;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    ::v-deep .lottery-ball.clone.invisible {
+        opacity: 0;
+    }
+    ::v-deep .lottery-ball.clone.no-transition {
+        transition: none;
+    }
+    #play{
+        margin-top:420px;
+        margin-left:100px;
+    }
+    @keyframes glassEffect {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.glass-animation {
+    animation: glassEffect 2s infinite linear;
+    background-image: linear-gradient(270deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0));
+    background-size: 200% 100%;
+    transition: background-position 0.3s;
+}
+</style>

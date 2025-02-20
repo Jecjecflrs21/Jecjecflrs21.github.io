@@ -1,0 +1,329 @@
+<template>
+  <div class="container-fluid">
+    <div class="row d-flex justify-content-center align-items-start" style="min-height: 100vh;">
+      <div class="col-md-10 col-lg-6 col-sm-10 g-mt-10">
+        <div class="g-pa-40 g-mb-30 vacant_positions" role="alert">
+          <div class="row">
+            <div class="col-lg-12 col-sm-12 g-pa-2">
+              <div class="form-group g-mb-20">
+                <v-form>
+                  <v-container>
+                    <v-row>
+                      <v-text-field
+                        label="EMPLOYEE ID INPUT"
+                        persistent-hint
+                        regular
+                        tile
+                        outlined
+                        clearable
+                        color="orange"
+                        x-large
+                        class="fill-width"
+                        v-model="employeeId"
+                      ></v-text-field>
+                      <v-btn @click="submitEmployeeId" color="orange" dark solo x-large>ENTER</v-btn>
+                    </v-row>
+                    <v-row justify="center">
+                      <div class="col-lg-12 col-sm-12 g-pa-2 d-flex justify-content-center">
+                        <span style="font-family: Gilroy; font-size: 1rem; font-weight: bold;">
+                          <label class="g-mb-10" style="color:white">OR</label>
+                        </span>
+                      </div>
+                    </v-row>
+                    <v-row justify="center"> 
+                      <v-dialog v-model="uploadModalOpen" max-width="500" >
+    <template v-slot:activator="{ on, attrs }">
+      <v-btn color="orange" dark solo x-large rounded  v-bind="attrs" v-on="on"   style="font-size: x-large;">
+        <v-icon left>mdi-qrcode-scan</v-icon>
+                            <span style="font-family: Gilroy; font-size: 1rem; font-weight: bold;">Scan Now!</span>
+      </v-btn>
+    </template>
+    <v-card>
+      <v-card-title>Scan your QR</v-card-title>
+      <v-card-text>
+        Choose an action:
+        <v-btn @click="uploadFile">Upload File</v-btn>
+        <v-btn @click="cancelUpload">CAMERA</v-btn>
+      </v-card-text>
+    </v-card>
+  </v-dialog>
+                    </v-row>
+                  </v-container>
+                  
+                </v-form>
+              </div>
+              <v-card id="qr-code-full-region"></v-card>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+
+<script>
+import Swal from 'sweetalert2';
+import axios from 'axios';
+import { Html5Qrcode } from 'html5-qrcode';
+
+export default {
+  data() {
+    return {
+      employeeId: '',
+      remainingTickets: '',
+      Html5Qrcode: null,
+      scannedqrcodes: '',
+      qrScannerRunning: false, 
+      dialog: false,
+      uploadModalOpen: false,
+    };
+  },
+  methods: {
+      async submitEmployeeId() {
+  try {
+    const response = await axios.post('http://127.0.0.1:8000/api/check-employee-bar', {
+      employee_id: this.employeeId
+    });
+    console.log(response.data);
+    // Swal.showLoading();
+    this.remainingTickets = response.data.remaining_tickets; // Access the remaining_tickets property from the response data object
+    if (response.data.message === "Tickets fully consumed!") { // Access the message property from the response data object
+      Swal.fire({
+        title: 'Employee Information',
+        text: response.data.message, // Access the message property from the response data object
+        icon: 'info',
+        customClass: {
+    confirmButton: 'orange-button',
+     }
+      });
+    } else {
+      Swal.fire({
+        title: 'Success!',
+        html: `Ticket Consumed! <br> Remaining tickets: ${response.data}`, // Access the remaining_tickets property from the response data object
+        icon: 'success',
+        customClass: {
+    confirmButton: 'orange-button',
+     }
+      });
+    }
+  } catch (error) {
+    if (error.response.status === 500) {
+      Swal.fire({
+        title: "<strong><u>Error</u></strong>",
+        text: error.response.data.message, // Access the message property from the response data object
+        icon: 'warning',
+        customClass: {
+    confirmButton: 'orange-button',
+     } });
+    } else {
+      console.error(error);
+    }
+  }
+},
+  showQRScanner() {
+  if (!this.qrScannerRunning) {
+    const Html5Qrcodes = new Html5Qrcode("qr-code-full-region");
+    const config = {
+      fps: 10,
+      qrbox: {
+        width: 250,
+        height: 250
+      }
+    };
+    Html5Qrcodes.start({
+      facingMode: "environment"
+    }, config, this.onScanSucess)
+    this.qrScannerRunning = true;
+  }
+},
+onScanSucess(decodeResult) {
+  this.scannedqrcodes = decodeResult;
+  this.qrScannerRunning = false;
+  this.submitEmployeeId();
+},
+toggleUploadModal() {
+    this.uploadModalOpen = !this.uploadModalOpen;
+  },
+  uploadFile() {
+    // Implement your file upload logic here
+    console.log('Uploading file...');
+    this.toggleUploadModal();
+  },
+  cancelUpload() {
+    // Implement your cancel logic here
+    console.log('Camera Selected');
+  this.toggleUploadModal();
+  this.showQRScanner(); // Add this line to open the QR scanner
+
+  },
+  },
+  }
+
+</script>
+
+<style>
+.u-btn-orange {
+  background-color: orange;
+  color: white;
+}
+
+.g-brd-orange {
+  border-color: orange;
+}
+
+.v-application .container-fluid {
+  padding-right: 15px;
+  padding-left: 15px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.v-application .row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-right: -15px;
+  margin-left: -15px;
+}
+
+.v-application .col {
+  position: relative;
+  width: 100%;
+  padding-right: 15px;
+  padding-left: 15px;
+}
+
+.v-application .d-flex {
+  display: flex;
+}
+
+.v-application .justify-content-center {
+  justify-content: center;
+}
+
+.v-application .g-mt-10 {
+  margin-top: 2.5rem;
+}
+
+.v-application .g-pa-40 {
+  padding: 2.5rem;
+}
+
+.v-application .g-mb-30 {
+  margin-bottom: 3.75rem;
+}
+
+.v-application .g-mb-20 {
+  margin-bottom: 1.25rem;
+}
+
+.v-application .g-mb-10 {
+  margin-bottom: 0.625rem;
+}
+
+.v-application .g-rounded-50 {
+  border-radius: 25px;
+}
+
+.v-application .text-uppercase {
+  text-transform: uppercase;
+}
+
+.v-application .g-font-size-24 {
+  font-size: 1.5rem;
+}
+
+.v-application .g-ml-15 {
+  margin-left: 1.875rem;
+}
+
+.v-application .form-control {
+  display: block;
+  width: 100%;
+  height: calc(1.5em + 0.75rem + 2px);
+  padding: 0.375rem 0.75rem;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #000000;
+  background-color:#000000;
+  background-clip: padding-box;
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.v-application .form-control:focus {
+  color: #495057;
+  background-color: #fff;
+  border-color: #80bdff;
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.v-application .btn {
+  display: inline-block;
+  font-weight: 400;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+  border: 1px solid transparent;
+  padding: 0.375rem 0.75rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  border-radius: 0.25rem;
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  text-transform: uppercase;
+}
+
+.v-application .btn-md {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  border-radius: 0.25rem;
+}
+
+.v-application .btn-xl {
+  padding: 0.75rem 2rem;
+  font-size: 1.25rem;
+  line-height: 1.5;
+  border-radius: 0.25rem;
+}
+
+.v-application .u-btn-outline-orange {
+  color: orange;border-color: orange;
+}
+
+.v-application .u-btn-outline-orange:hover {
+  color: #fff;
+  background-color: orange;
+  border-color: orange;
+}
+
+.v-application .u-btn-hover-v1-4:hover {
+  background-color: orange;
+  border-color: orange;
+}
+.fill-width {
+  width: 70%; /* Ensure the field fills the available width */
+}
+.orange-button {
+  color: #fff !important;
+  background-color: #ff9800 !important;
+  border-color: #ff9800 !important;
+}
+.sharp-outline .v-input--outlined {
+  border-radius: 0;
+}
+#qr-reader {
+  width: 100%;
+  height: 300px;
+  border: 1px solid #000000;
+  border-radius: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+</style>

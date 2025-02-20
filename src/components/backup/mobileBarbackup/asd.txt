@@ -1,0 +1,132 @@
+<template>
+  <div class="container-fluid">
+    <div class="row d-flex justify-content-center align-items-start" style="min-height: 100vh;">
+      <div class="col-md-10 col-lg-6 col-sm-10 g-mt-10">
+        <div class="g-pa-40 g-mb-30 vacant_positions" role="alert">
+          <div class="row">
+            <div class="col-lg-12 col-sm-12 g-pa-2">
+              <div class="form-group g-mb-20">
+                <v-form>
+                  <v-container>
+                    <v-row>
+                      <v-text-field
+                        label="EMPLOYEE ID INPUT"
+                        persistent-hint
+                        regular
+                        tile
+                        outlined
+                        clearable
+                        color="orange"
+                        x-large
+                        class="fill-width"
+                        v-model="employeeId"
+                      ></v-text-field>
+                      <v-btn @click="submitEmployeeId" color="orange" dark solo x-large>ENTER</v-btn>
+                    </v-row>
+                    <v-row justify="center">
+                      <div class="col-lg-12 col-sm-12 g-pa-2 d-flex justify-content-center">
+                        <span style="font-family: Gilroy; font-size: 1rem; font-weight: bold;">
+                          <label class="g-mb-10" style="color:white">OR</label>
+                        </span>
+                      </div>
+                    </v-row>
+                    <v-row justify="center"> 
+                      <v-dialog v-model="dialog" persistent max-width="290">
+                        <template v-slot:activator="{ on, attrs }">
+                          <v-btn  
+                            @click="showQRScanner()"
+                            color="orange"
+                            solo
+                            rounded
+                            x-large
+                            style="font-size: x-large;"
+                            v-bind="attrs"
+                            v-on="on"
+                          > 
+                            <v-icon left>mdi-qrcode-scan</v-icon>
+                            <span style="font-family: Gilroy; font-size: 1rem; font-weight: bold;">Scan Now!</span>
+                          </v-btn> 
+                        </template>
+                        <v-card>
+                          <v-card-title class="text-h5" color="orange">SCAN YOUR QR CODE</v-card-title>
+                          <v-card id="qr-code-full-region">
+                            <input type="file" accept="image/*" @change="handleFileUpload">
+                          </v-card>
+                          <h1> {{ scannedqrcodes }}</h1>
+                          <v-card-actions>
+                            <v-spacer></v-spacer>
+                            <v-btn color="orange" text @click="dialog = false">Close</v-btn>
+                          </v-card-actions>
+                        </v-card>
+                      </v-dialog>
+                    </v-row>
+                  </v-container>
+                </v-form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import Swal from 'sweetalert2';
+import axios from 'axios';
+import { Html5Qrcode } from 'html5-qrcode';
+
+export default {
+  data() {
+    return {
+      employeeId: '',
+      remainingTickets: '',
+      Html5Qrcode: null,
+      scannedqrcodes: '',
+      qrScannerRunning: false, 
+      dialog: false,
+    };
+  },
+  methods: {
+    async submitEmployeeId() {
+      // Your existing code for submitting employee ID
+    },
+    showQRScanner() {
+      if (!this.qrScannerRunning) {
+        const Html5Qrcodes = new Html5Qrcode("qr-code-full-region");
+        const config = {
+          fps: 10,
+          qrbox: {
+            width: 250,
+            height: 250
+          }
+        };
+        Html5Qrcodes.start({
+          facingMode: "environment"
+        }, config, this.onScanSuccess);
+        this.qrScannerRunning = true;
+      }
+    },
+    handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+          this.scannedqrcodes = reader.result;
+          this.submitEmployeeId();
+        };
+      }
+    },
+    onScanSuccess(decodeResult) {
+      this.scannedqrcodes = decodeResult;
+      this.qrScannerRunning = false;
+      this.submitEmployeeId();
+    },
+  }
+}
+</script>
+
+<style>
+/* Your existing styles */
+</style>

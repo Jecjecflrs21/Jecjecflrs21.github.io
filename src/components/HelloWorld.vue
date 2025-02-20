@@ -1,0 +1,345 @@
+<template>
+    <div class="container-fluid">
+    <div class="row d-flex justify-content-center align-items-start" style="min-height: 100vh;">
+    <div class="col-md-10 col-lg-6 col-sm-10 g-mt-10">
+        <v-dialog v-model="fullScreenDialogOpen" full-screen hide-overlay transition="dialog-top-transition"
+            @click.native="dragDialog">
+                <v-card class="fullscreen-dialog-content">  
+                    <img src="@/assets/ingcoph_logo_alt.jpg" class="img-fluid ingco_logo">
+                    <img src="@/assets/corner.png" class="img-fluid corners">
+                    <img src="@/assets/corner.png" class="img-fluid corners-top-left">
+                    <img src="@/assets/corner.png" class="img-fluid corners-top-right">
+                    <img src="@/assets/corner.png" class="img-fluid corners-bottom-right">
+                </v-card>
+        </v-dialog>
+            <div class="g-pa-40 g-mb-30 vacant_positions" role="alert">
+                <div class="row">
+                <div class="col-lg-12 col-sm-12 g-pa-2">
+                    <div class="form-group g-mb-20">
+                    <v-form>
+                        <v-container>
+                        <v-row>
+                            <v-text-field @keyup.enter="submitEmployeeId" label="EMPLOYEE ID INPUT" persistent-hint regular tile outlined
+                            clearable color="orange" x-large class="fill-width" v-model="employeeId">
+                            </v-text-field>
+                            <v-btn @click="submitEmployeeId" color="orange" dark solo x-large>
+                            ENTER
+                            </v-btn>
+                        </v-row>
+                        <v-row justify="center">
+                            <div class="col-lg-12 col-sm-12 g-pa-2 d-flex justify-content-center">
+                            <span style="font-family: Evogria; font-size: 1rem; font-weight: bold;">
+                                <label class="g-mb-10" style="color:white">
+                                OR
+                                </label>
+                            </span>
+                            </div>
+                        </v-row>
+                        <v-row justify="center">
+                            <v-dialog v-model="uploadModalOpen" max-width="400">
+                            <template v-slot:activator="{ on, attrs }">
+                                <v-btn @click="clearEmployeeId" elevation="24" color="orange" icon rounded
+                                    fab plain v-bind="attrs" v-on="on">
+                                <v-icon size="35" left>
+                                    mdi-qrcode-scan
+                                </v-icon>
+                                <span class="underline-animation" style="font-family: Evogria; font-size: 1.8rem; font-weight: bold;">
+                                    Scan Now!
+                                </span>
+                                </v-btn>
+                            </template>
+                            <v-card class="orange-border" style="font-family: Evogria;">
+                                <v-card-title @mouseover="hovered = true" @mouseleave="hovered = false"
+                                :class="{ 'orange-text': hovered }">
+                                SCAN YOUR QR CODE
+                                </v-card-title>
+                                <v-divider :thickness="20">
+                                </v-divider>
+                                <v-card-text>
+                                Choose an action:
+                                </v-card-text>
+                                <v-card-text class="text-center" @mouseover="hovered = true" @mouseleave="hovered = false"
+                                :class="{ 'orange-text': hovered }">
+                                <input @change="handleFileUpload" ref="fileInput" type="file" accept="image/*"
+                                style="display: none" />
+                                <v-btn @click="chooseFile" class="underline-animation">
+                                    <v-icon size="22" left>
+                                    mdi-paperclip
+                                    </v-icon>
+                                    Upload QR Code
+                                </v-btn>
+                                </v-card-text>
+                                <v-spacer>
+                                </v-spacer>
+                                <v-card-text class="text-center">
+                                OR
+                                </v-card-text>
+                                <v-spacer>
+                                </v-spacer>
+                                <v-card-text class="text-center" @mouseover="hovered = true" @mouseleave="hovered = false"
+                                :class="{ 'orange-text': hovered }">
+                                <v-btn @click="cancelUpload" class="underline-animation">
+                                    <v-icon size="22" left>
+                                    mdi-camera
+                                    </v-icon>
+                                    Use Camera
+                                </v-btn>
+                                </v-card-text>
+                            </v-card>
+                            <v-card class="orange-border" id="qr-code-full-region">
+                            </v-card>
+                            <v-btn class="orange-border" v-if="qrScannerRunning" @click="closeQRScanner"
+                            color="orange" dark>
+                                Close Scanner
+                            </v-btn>
+                            </v-dialog>
+                        </v-row>
+                        </v-container>
+                    </v-form>
+                    </div>
+                </div>
+                </div>
+            </div>
+    </div>
+    </div>
+</div>
+</template>
+
+<script>
+import Swal from 'sweetalert2';
+import axios from 'axios';
+import { Html5Qrcode } from 'html5-qrcode';
+import jsQR from 'jsqr';
+import draggable from 'vuedraggable';
+
+export default {
+components: {
+    draggable,
+},
+name: 'HelloWorld',
+data() {
+    return {
+    employeeId: '',
+    remainingTickets: '',
+    Html5Qrcode: null,
+    scannedqrcodes: '',
+    qrScannerRunning: false, 
+    dialog: false,
+    uploadModalOpen: false,
+    uploadFileModalOpen: false,
+    selectedFile: null,
+    selectedFileName: null,
+    hovered: false,
+    fullScreenDialogOpen: true,
+    items: [1],
+    dragOptions: {
+        axis: 'y',
+        preventOnFilter: false,
+        scroll: false,
+        onStart: (event) => {
+          // Disable scrolling when dragging starts
+        document.body.style.overflow = 'hidden';
+        },
+        onStop: (event) => {
+          // Re-enable scrolling when dragging stops
+        document.body.style.overflow = 'auto';
+        if (event.clientY <= 0) {
+            // Close the dialog if dragged to the top of the screen
+            this.fullScreenDialogOpen = false;
+        }
+        },
+    },
+    };
+},
+methods: {
+    async submitEmployeeId(scannedqrcodes) {Swal.showLoading();
+try {
+    const response = await axios.post('http://127.0.0.1:8000/api/check-employee-bar', {
+    employee_id: this.employeeId || this.scannedqrcodes
+    });
+    console.log(response.data);
+    Swal.showLoading();
+    this.remainingTickets = response.data.remaining_tickets; // Access the remaining_tickets property from the response data object
+    if (response.data.message === "Tickets fully consumed!") { // Access the message property from the response data object
+    Swal.fire({
+        title: 'Employee Information',
+        text: response.data.message, // Access the message property from the response data object
+        icon: 'info',
+        allowOutsideClick: false,
+        customClass: {
+    confirmButton: 'orange-button',
+    }
+    });
+    } else {
+    Swal.fire({
+        title: 'Success!',
+        html: `Ticket Consumed! <br> Remaining tickets: ${response.data}`, // Access the remaining_tickets property from the response data object
+        icon: 'success',
+        allowOutsideClick: false,
+        customClass: {
+    confirmButton: 'orange-button',
+    }
+    });
+    }
+} catch (error) {
+    if (error.response.status === 500) {
+    Swal.fire({
+        title: "<strong><u>NOT FOUND</u></strong>",
+        text: error.response.data.message, // Access the message property from the response data object
+        icon: 'warning',
+        allowOutsideClick: false,
+        customClass: {
+    confirmButton: 'orange-button',
+    } });
+    } else {
+    console.error(error);
+    }
+}
+},
+showQRScanner() {
+if (!this.qrScannerRunning) {
+    const Html5Qrcodes = new Html5Qrcode("qr-code-full-region");
+    const config = {
+    fps: 10,
+    qrbox: {
+        width: 250,
+        height: 250
+    }
+    };
+    Html5Qrcodes.start({
+    facingMode: "environment"
+    }, config, this.onScanSucess)
+    this.qrScannerRunning = true;
+}
+},
+onScanSucess(decodeResult) {
+this.scannedqrcodes = decodeResult;
+this.qrScannerRunning = false;
+this.submitEmployeeId(this.scannedqrcodes);
+},
+toggleUploadModal() {
+    this.uploadModalOpen = !this.uploadModalOpen;
+},
+uploadFile() {
+    this.toggleUploadModal();
+},
+cancelUpload() {
+    console.log('Camera Selected');
+this.showQRScanner(); 
+},
+closeQRScanner() {
+    this.qrScannerRunning = false;
+    this.uploadModalOpen = false;
+},
+async handleFileUpload(event) {
+const file = event.target.files[0];
+if (file) {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = async () => {
+    const image = new Image();
+    image.src = reader.result;
+    image.onload = async () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(image, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+        if (qrCode) {
+        this.scannedqrcodes = qrCode.data;
+        this.submitEmployeeId();
+        } else {
+        console.error('QR code not found or could not be decoded.');
+        }
+        this.uploadModalOpen = false;
+    };
+    };
+}
+},
+chooseFile() {
+    this.$refs.fileInput.click();
+    },
+    handleFileChange(event) {
+    const file = event.target.files[0];
+    this.selectedFile = file;
+    this.selectedFileName = file ? file.name : null;
+    },
+    clearFile() {
+    this.selectedFile = null;
+    this.selectedFileName = null;
+    },
+    clearEmployeeId() {
+    this.employeeId = '';
+    }
+},
+created() {
+    document.title = 'Mobile Bar';
+},
+dragDialog(event) {
+      // Check if the click is in the lower middle part of the dialog
+    const dialogRect = event.target.getBoundingClientRect();
+    const dialogMiddleY = dialogRect.top + dialogRect.height / 2;
+    if (event.clientY > dialogMiddleY) {
+        // Drag the dialog
+        this.fullScreenDialogOpen = false;
+    }
+    }
+}
+</script>
+
+
+<style scoped>
+@import '/src/assets/css/HelloWorld.css';
+
+
+.fullscreen-dialog-content {
+height: 80vh;
+display: flex;
+overflow: hidden;
+justify-content: center;
+align-items: center;
+}
+.ingco_logo {
+position: absolute;
+top: 1px;
+max-width: 10.0%;
+max-height: auto;
+}
+.corners {
+position: absolute;
+bottom: 3px;
+left: 3px;
+max-width: 5%;
+max-height: 40px;
+opacity: 0.8;
+}
+.corners-top-left{
+position: absolute;
+top: 3px;
+left: 3px;
+max-width: 5%;
+max-height: 40px;
+opacity: 0.8;
+transform: rotate(-270deg);   
+}
+.corners-top-right{
+position: absolute;
+top: 3px;
+right: 3px;
+max-width: 5%;
+max-height: 40px;
+opacity: 0.8;
+transform: rotate(-180deg);   
+}
+.corners-bottom-right{
+position: absolute;
+bottom: 3px;
+right: 3px;
+max-width: 5%;
+max-height: 40px;
+opacity: 0.8;
+transform: rotate(-90deg);   
+}
+</style>
